@@ -4,6 +4,7 @@ from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
 from tensorflow.keras.optimizers import Adam
+import joblib
 
 class StockPredictor:
     def __init__(self):
@@ -18,7 +19,7 @@ class StockPredictor:
     def prepare_features(self, data, window=20):
         data = data.copy()
         data = data.fillna(method='ffill').fillna(method='bfill')
-        
+
         # Feature engineering
         data['Price_Momentum'] = data['Close'].pct_change(window, fill_method=None)
         data['Volume_Momentum'] = data['Volume'].pct_change(window, fill_method=None)
@@ -36,12 +37,11 @@ class StockPredictor:
         data['Upper_Channel'] = data['High'].rolling(window=20, min_periods=1).max()
         data['Lower_Channel'] = data['Low'].rolling(window=20, min_periods=1).min()
         data['Channel_Position'] = (data['Close'] - data['Lower_Channel']) / \
-                                   (data['Upper_Channel'] - data['Lower_Channel']).replace(0, 1)
+            (data['Upper_Channel'] - data['Lower_Channel']).replace(0, 1)
 
-        features = ['Open', 'High', 'Low', 'Close', 'Volume', 'Price_Momentum', 
-                    'Volume_Momentum', 'Price_Acceleration', 'SMA_5', 'SMA_20', 
-                    'MACD', 'Signal_Line', 'RSI', 'Daily_Range', 'ATR', 
-                    'Trend_Strength', 'Channel_Position']
+        features = ['Open', 'High', 'Low', 'Close', 'Volume', 'Price_Momentum', 'Volume_Momentum', 
+                    'Price_Acceleration', 'SMA_5', 'SMA_20', 'MACD', 'Signal_Line', 'RSI', 
+                    'Daily_Range', 'ATR', 'Trend_Strength', 'Channel_Position']
         
         return data[features].fillna(method='ffill').fillna(method='bfill')
 
@@ -51,14 +51,33 @@ class StockPredictor:
         gain = (delta.where(delta > 0, 0)).rolling(window=period, min_periods=1).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=period, min_periods=1).mean()
         rs = gain / loss.replace(0, np.inf)
+        
         return 100 - (100 / (1 + rs))
+
+    def train_and_save(self, nvda_data_path='nvda_processed.csv', nvdq_data_path='nvdq_processed.csv'):
+        nvda_data = pd.read_csv(nvda_data_path)
+        nvdq_data = pd.read_csv(nvdq_data_path)
+
+        # Train NVDA model
+        self.train(nvda_data)
+        self.model.save('nvda_model.h5')
+        
+        # Save NVDA scaler
+        joblib.dump(self.scaler, 'scaler_nvda.pkl')
+        
+        # Train NVDQ model
+        self.train(nvdq_data)
+        self.model.save('nvdq_model.h5')
+        
+        # Save NVDQ scaler
+        joblib.dump(self.scaler, 'scaler_nvdq.pkl')
 
     def train(self, data):
         if len(data) < 50:
             raise ValueError("Insufficient historical data for training")
         
         features = self.prepare_features(data)
-        features.dropna(inplace=True)
+        features = features.dropna()
 
         y = np.column_stack([
             data['Close'].shift(-i).loc[features.index] for i in range(1, 6)
@@ -80,22 +99,9 @@ class StockPredictor:
         X_scaled = self.scaler.transform(X)
         
         X_reshaped = X_scaled.reshape((X_scaled.shape[0], 1, X_scaled.shape[1]))
-        
+
         self.model.fit(X_reshaped, y, epochs=50, batch_size=32, verbose=0)
 
-    def save_model(self, filename):
-        self.model.save(filename)
-
-# Training and saving models for NVDA and NVDQ
 if __name__ == "__main__":
-    nvda_data = pd.read_csv('nvda_processed.csv')
-    nvdq_data = pd.read_csv('nvdq_processed.csv')
-    
-    nvda_predictor = StockPredictor()
-    nvdq_predictor = StockPredictor()
-
-    nvda_predictor.train(nvda_data)
-    nvda_predictor.save_model('nvda_predictor.h5')
-
-    nvdq_predictor.train(nvdq_data)
-    nvdq_predictor.save_model('nvdq_predictor.h5')
+    predictor_nvda = StockPredictor()
+    predictor_nvda.train_and_save()
