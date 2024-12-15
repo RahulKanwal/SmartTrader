@@ -8,7 +8,7 @@
 </head>
 <body class="bg-light">
     <div class="container py-5">
-        <h1 class="text-center text-primary mb-4">Stock Prediction</h1>
+        <h1 class="text-center text-primary mb-4">Smart Trader Application</h1>
         <div class="card mx-auto" style="max-width: 500px;">
             <div class="card-body">
                 <form method="post">
@@ -22,13 +22,41 @@
         </div>
 
         {% if predictions %}
+        <hr class="my-4">
+        <div class="alert alert-info text-center mb-4" role="alert">
+            <strong>You have selected the date: {{ selected_date }}. Following predictions have been made.</strong> 
+        </div>
+        <hr class="my-4">
         <div class="mt-4">
             <h2>Predictions</h2>
             <ul class="list-group">
-                <li class="list-group-item">Highest Predicted Price: {{ predictions[0] }}</li>
-                <li class="list-group-item">Lowest Predicted Price: {{ predictions[1] }}</li>
-                <li class="list-group-item">Average Closing Price: {{ predictions[2] }}</li>
+                <li class="list-group-item">Highest Predicted Price: {{ predictions['highest_predicted_price'] }}</li>
+                <li class="list-group-item">Lowest Predicted Price: {{ predictions['lowest_predicted_price'] }}</li>
+                <li class="list-group-item">Average Closing Price: {{ predictions['average_closing_price'] }}</li>
             </ul>
+        </div>
+
+        <!-- Separator -->
+        <hr class="my-4">
+
+        <div>
+            <h2>Recommended Training Strategy</h2>
+            <table class="table table-bordered table-striped">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Date</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in predictions['trading_strategy_table'] %}
+                    <tr>
+                        <td>{{ row[0] }}</td>
+                        <td>{{ row[1] }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
         {% endif %}
     </div>
