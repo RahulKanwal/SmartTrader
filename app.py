@@ -20,10 +20,10 @@ def index():
         user_date = request.form['date']
         # Call your prediction function here with user_date
         data = data_pipeline(user_date)
-        high_model, low_model, avg_close_model = train_models(data)
-        high_pred, low_pred, avg_close_pred = make_predictions(data, high_model, low_model, avg_close_model, user_date)
-        if high_pred is not None and low_pred is not None and avg_close_pred is not None:
-            predictions = perform_additional_functions(data, high_pred, low_pred, avg_close_pred, user_date)
+        high_model, low_model, avg_close_model, open_model = train_models(data)
+        high_pred, low_pred, avg_close_pred, open_pred = make_predictions(data, high_model, low_model, avg_close_model, open_model, user_date)
+        if high_pred is not None and low_pred is not None and avg_close_pred is not None and open_pred is not None:
+            predictions = perform_additional_functions(data, high_pred, low_pred, avg_close_pred, open_pred, user_date)
         return render_template('index.html', predictions=predictions, selected_date = user_date)
     return render_template('index.html')
 
@@ -120,12 +120,14 @@ def create_target_variables(data):
     data['High_5'] = data['High'].rolling(window=5).max().shift(-5)
     data['Low_5'] = data['Low'].rolling(window=5).min().shift(-5)
     data['Avg_Close_5'] = data['Close'].rolling(window=5).mean().shift(-5)
+    data['Open_5'] = data['Open'].shift(-5)  # New target variable for Open prices
+
     return data
 
 # Prepare data for modeling
 def prepare_data(data, target_col):
     data = data.reset_index(drop=True)
-    features = data.drop(columns=['High_5', 'Low_5', 'Avg_Close_5', 'Ticker'], errors='ignore')
+    features = data.drop(columns=['High_5', 'Low_5', 'Avg_Close_5', 'Open_5', 'Ticker'], errors='ignore')
     target = data[target_col]
     clean_data = pd.concat([features, target], axis=1).dropna()
     if clean_data.empty:
@@ -160,46 +162,47 @@ def train_models(data):
     print("Training Avg_Close_5 model...")
     X_train, X_test, y_train, y_test = prepare_data(data, 'Avg_Close_5')
     avg_close_model = train_random_forest(X_train, X_test, y_train, y_test, 'Avg_Close_5')
-    return high_model, low_model, avg_close_model
+    print("Training Open_5 model...")
+    X_train, X_test, y_train, y_test = prepare_data(data, 'Open_5')
+    open_model = train_random_forest(X_train, X_test, y_train, y_test, 'Open_5')
+    return high_model, low_model, avg_close_model, open_model
 
-def make_predictions(data, high_model, low_model, avg_close_model, user_date):
+def make_predictions(data, high_model, low_model, avg_close_model, open_model, user_date):
     """
     Make predictions for the next 5 business days starting from the next day.
     """
-    user_date = datetime.strptime(user_date, '%Y-%m-%d') + timedelta(days=1)  # Start from next day
+    user_date = datetime.strptime(user_date, '%Y-%m-%d') + timedelta(days=1)
     data = data.reset_index(drop=True)
-    last_data = data.iloc[-5:].drop(columns=['High_5', 'Low_5', 'Avg_Close_5', 'Ticker']).dropna()
-
+    last_data = data.iloc[-5:].drop(columns=['High_5', 'Low_5', 'Avg_Close_5', 'Open_5', 'Ticker']).dropna()
+    
     if len(last_data) == 5:
         future_dates = get_next_business_days(user_date)
         high_pred = high_model.predict(last_data)
         low_pred = low_model.predict(last_data)
         avg_close_pred = avg_close_model.predict(last_data)
+        open_pred = open_model.predict(last_data)
 
-        print("\nPredictions for the next 5 business days:")
-        for i, future_date in enumerate(future_dates):
-            print(f"Day {i+1}, {future_date.date()}:")
-            print(f" Predicted High: {high_pred[i]:.2f}")
-            print(f" Predicted Low: {low_pred[i]:.2f}")
-            print(f" Predicted Average Close: {avg_close_pred[i]:.2f}")
-        return high_pred, low_pred, avg_close_pred
+        # print("\nPredictions for the next 5 business days:")
+        # for i, future_date in enumerate(future_dates):
+        #     print(f"Day {i+1}, {future_date.date()}:")
+        #     print(f" Predicted High: {high_pred[i]:.2f}")
+        #     print(f" Predicted Low: {low_pred[i]:.2f}")
+        #     print(f" Predicted Average Close: {avg_close_pred[i]:.2f}")
+        return high_pred, low_pred, avg_close_pred, open_pred
     else:
         print("Insufficient data for predictions.")
         return None, None, None
 
-def simulate_trading_strategy(data, high_pred, low_pred, avg_close_pred, user_date):
-    """
-    Simulate trading strategy starting from the next day.
-    """
-    user_date = datetime.strptime(user_date, '%Y-%m-%d') + timedelta(days=1)  # Start from next day
+def simulate_trading_strategy(data, high_pred, low_pred, avg_close_pred, open_pred, user_date):
+    user_date = datetime.strptime(user_date, '%Y-%m-%d') + timedelta(days=1)
     future_dates = get_next_business_days(user_date)
     nvda_shares = 10000
     nvdq_shares = 100000
     table_data = []
 
     for i, future_date in enumerate(future_dates):
-        nvda_open = yf.Ticker("NVDA").history(start=future_date, end=future_date + timedelta(days=1))['Open'].iloc[0]
-        nvdq_open = yf.Ticker("NVDQ").history(start=future_date, end=future_date + timedelta(days=1))['Open'].iloc[0]
+        nvda_open = open_pred[i]  # Use predicted Open price for NVDA
+        nvdq_open = open_pred[i]  # Use the same predicted Open price for NVDQ
 
         if avg_close_pred[i] > nvda_open:
             action = "BULLISH"
@@ -217,20 +220,22 @@ def simulate_trading_strategy(data, high_pred, low_pred, avg_close_pred, user_da
 
     return table_data
 
-def perform_additional_functions(data, high_pred, low_pred, avg_close_pred, user_date):
+def perform_additional_functions(data, high_pred, low_pred, avg_close_pred, open_pred, user_date):
     high_predictions = np.array(high_pred)
     low_predictions = np.array(low_pred)
+    open_predictions = np.array(open_pred)
     avg_close_predictions = np.array(avg_close_pred)
     highest_price = np.max(high_predictions)
     lowest_price = np.min(low_predictions)
     avg_closing_price = np.mean(avg_close_predictions)
+    avg_opening_price = np.mean(open_predictions)
     print("\nSummary of Predictions:")
     print(f"Highest Predicted Price: {highest_price:.2f}")
     print(f"Lowest Predicted Price: {lowest_price:.2f}")
     print(f"Average Closing Price: {avg_closing_price:.2f}")
     print("\nSimulating Trading Strategy:")
-    table_data = simulate_trading_strategy(data, high_pred, low_pred, avg_close_pred, user_date)
-    print(f"\nFinal Portfolio Value: {table_data[-1][-1]}")
+    table_data = simulate_trading_strategy(data, high_pred, low_pred, avg_close_pred, open_pred, user_date)
+    # print(f"\nFinal Portfolio Value: {table_data[-1][-1]}")
     initial_value = float(table_data[0][-1].replace('$', ''))
     final_value = float(table_data[-1][-1].replace('$', ''))
     total_return = ((final_value / initial_value) - 1) * 100
@@ -240,6 +245,7 @@ def perform_additional_functions(data, high_pred, low_pred, avg_close_pred, user
         "highest_predicted_price": highest_price,
         "lowest_predicted_price": lowest_price,
         "average_closing_price": avg_closing_price,
+        "average_opening_price": avg_opening_price,
         "trading_strategy_table": table_data,
         "final_portfolio_value": table_data[-1][-1],
         "total_return": total_return
