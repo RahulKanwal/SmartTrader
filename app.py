@@ -143,7 +143,7 @@ def train_random_forest(X_train, X_test, y_train, y_test, target_name):
         print(f"Skipping training for {target_name} due to insufficient data.")
         return None
     print(f"Training Random Forest model for {target_name}...")
-    model = RandomForestRegressor(random_state=42, n_estimators=100)
+    model = RandomForestRegressor(random_state=42, n_estimators=200)
     model.fit(X_train, y_train)
     predictions = model.predict(X_test)
     mae = mean_absolute_error(y_test, predictions)
@@ -182,12 +182,6 @@ def make_predictions(data, high_model, low_model, avg_close_model, open_model, u
         avg_close_pred = avg_close_model.predict(last_data)
         open_pred = open_model.predict(last_data)
 
-        # print("\nPredictions for the next 5 business days:")
-        # for i, future_date in enumerate(future_dates):
-        #     print(f"Day {i+1}, {future_date.date()}:")
-        #     print(f" Predicted High: {high_pred[i]:.2f}")
-        #     print(f" Predicted Low: {low_pred[i]:.2f}")
-        #     print(f" Predicted Average Close: {avg_close_pred[i]:.2f}")
         return high_pred, low_pred, avg_close_pred, open_pred
     else:
         print("Insufficient data for predictions.")
@@ -196,27 +190,38 @@ def make_predictions(data, high_model, low_model, avg_close_model, open_model, u
 def simulate_trading_strategy(data, high_pred, low_pred, avg_close_pred, open_pred, user_date):
     user_date = datetime.strptime(user_date, '%Y-%m-%d') + timedelta(days=1)
     future_dates = get_next_business_days(user_date)
+    # Initial portfolio as specified in project guidelines
     nvda_shares = 10000
     nvdq_shares = 100000
     table_data = []
 
     for i, future_date in enumerate(future_dates):
-        nvda_open = open_pred[i]  # Use predicted Open price for NVDA
-        nvdq_open = open_pred[i]  # Use the same predicted Open price for NVDQ
+        nvda_open = open_pred[i]  
+        nvda_close_prediction = avg_close_pred[i]
 
-        if avg_close_pred[i] > nvda_open:
+        # Calculate the predicted price movement
+        price_change_percentage = ((nvda_close_prediction - nvda_open) / nvda_open) * 100
+        
+        if price_change_percentage > 0:
+            # BULLISH: NVDA expected to rise, convert NVDQ to NVDA
             action = "BULLISH"
-            nvda_shares += nvdq_shares / nvda_open
+            # Calculate NVDQ value and convert to NVDA shares
+            nvdq_value = nvdq_shares * nvda_open
+            nvda_shares += nvdq_value / nvda_open
             nvdq_shares = 0
-        elif avg_close_pred[i] < nvda_open:
+        elif price_change_percentage < 0:
+            # BEARISH: NVDA expected to fall, convert NVDA to NVDQ
             action = "BEARISH"
-            nvdq_shares += nvda_shares * nvda_open
+            # Calculate NVDA value and convert to NVDQ shares
+            nvda_value = nvda_shares * nvda_open
+            nvdq_shares += nvda_value / nvda_open
             nvda_shares = 0
         else:
+            # IDLE: No significant price movement expected
             action = "IDLE"
 
-        portfolio_value = nvda_shares * nvda_open + nvdq_shares * nvdq_open
-        table_data.append([future_date.date(), action, f"{nvda_shares:.2f}", f"{nvdq_shares:.2f}", f"${portfolio_value:.2f}"])
+        # portfolio_value = nvda_shares * nvda_open + nvdq_shares * nvdq_open
+        table_data.append([future_date.date(), action])
 
     return table_data
 
@@ -235,11 +240,7 @@ def perform_additional_functions(data, high_pred, low_pred, avg_close_pred, open
     print(f"Average Closing Price: {avg_closing_price:.2f}")
     print("\nSimulating Trading Strategy:")
     table_data = simulate_trading_strategy(data, high_pred, low_pred, avg_close_pred, open_pred, user_date)
-    # print(f"\nFinal Portfolio Value: {table_data[-1][-1]}")
-    initial_value = float(table_data[0][-1].replace('$', ''))
-    final_value = float(table_data[-1][-1].replace('$', ''))
-    total_return = ((final_value / initial_value) - 1) * 100
-    print(f"Total Return: {total_return:.2f}%")
+   
     # Return results as a dictionary
     return {
         "highest_predicted_price": highest_price,
@@ -247,8 +248,6 @@ def perform_additional_functions(data, high_pred, low_pred, avg_close_pred, open
         "average_closing_price": avg_closing_price,
         "average_opening_price": avg_opening_price,
         "trading_strategy_table": table_data,
-        "final_portfolio_value": table_data[-1][-1],
-        "total_return": total_return
     }
 
 if __name__ == '__main__':
