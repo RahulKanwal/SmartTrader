@@ -161,7 +161,7 @@ def make_predictions(data, high_model, low_model, avg_close_model, open_model, u
         # Create table data
         table_data = []
         for i, future_date in enumerate(future_dates):
-            action = "BEARISH" if avg_close_pred[i] < open_pred[i] else "BULLISH"
+            action = "BEARISH" if round(avg_close_pred[i]) < round(open_pred[i]) else "BULLISH"
             row = [
                 future_date.strftime('%b %d, %Y'),
                 f"{open_pred[i]:.2f}",
@@ -199,7 +199,7 @@ def simulate_trading_strategy(data, high_pred, low_pred, avg_close_pred, open_pr
         print(nvda_open, nvda_close_prediction)
         
         # Calculate the predicted price movement
-        price_change_percentage = ((nvda_close_prediction - nvda_open) / nvda_open) * 100
+        price_change_percentage = ((round(nvda_close_prediction,2) - round(nvda_open,2)) / round(nvda_open,2)) * 100
         
         if price_change_percentage > 0:
             # BULLISH: NVDA expected to rise, convert NVDQ to NVDA
