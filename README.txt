@@ -26,7 +26,8 @@ Deployment on Free Tier: Our application is hosted on the free version of Render
 
 Initial Load Time: Due to the nature of the free tier, the application instance may spin down during periods of inactivity. This can result in an initial delay of 50 seconds or more when you first access the application.
 
-Processing Delays: After selecting a date and clicking the 'Predict' button to generate a stock trading strategy, please allow some additional time for the results to be processed and displayed. The duration may vary depending on current server load and activity levels.
+Processing Delays: After selecting a date and clicking the 'Predict' button, it may take more than a minute to generate and display the stock trading strategy. This delay is primarily due to server response times and processing requirements.
+
 —-------------------------------------
 Build instructions:
 
