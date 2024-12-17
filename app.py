@@ -10,6 +10,7 @@ import pandas_market_calendars as mcal
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error
+from tabulate import tabulate
 
 app = Flask(__name__)
 
@@ -181,6 +182,25 @@ def make_predictions(data, high_model, low_model, avg_close_model, open_model, u
         low_pred = low_model.predict(last_data)
         avg_close_pred = avg_close_model.predict(last_data)
         open_pred = open_model.predict(last_data)
+        
+        # Create table data
+        table_data = []
+        for i, future_date in enumerate(future_dates):
+            action = "BEARISH" if avg_close_pred[i] < open_pred[i] else "BULLISH"
+            row = [
+                future_date.strftime('%b %d, %Y'),
+                f"{open_pred[i]:.2f}",
+                f"{low_pred[i]:.2f}",
+                f"{high_pred[i]:.2f}",
+                f"{avg_close_pred[i]:.2f}",
+                action
+            ]
+            table_data.append(row)
+        
+        # Print table using tabulate
+        headers = ['Date', 'Predicted Open', 'Predicted Low', 'Predicted High', 'Predicted Close', 'Action']
+        print("\nPredictions for the next 5 business days:")
+        print(tabulate(table_data, headers=headers, tablefmt='grid'))
 
         return high_pred, low_pred, avg_close_pred, open_pred
     else:
