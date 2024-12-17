@@ -191,7 +191,7 @@ def simulate_trading_strategy(data, high_pred, low_pred, avg_close_pred, open_pr
     nvda_shares = 10000
     nvdq_shares = 100000
     
-    table_data = []
+    # table_data = []
 
     for i, future_date in enumerate(future_dates):
         nvda_open = open_pred[i]
@@ -222,11 +222,29 @@ def simulate_trading_strategy(data, high_pred, low_pred, avg_close_pred, open_pr
         # Calculate portfolio value using open prices
         #portfolio_value = nvda_shares * nvda_open + nvdq_shares * nvda_open
         
-        table_data.append([
-            future_date.date(), 
-            action
-        ])
+        # table_data.append([
+        #     future_date.date(), 
+        #     action
+        # ])
 
+    # Create table data
+    table_data = []
+    for i, future_date in enumerate(future_dates):
+        action = "BEARISH" if round(avg_close_pred[i]) < round(open_pred[i]) else "BULLISH"
+        row = [
+            future_date.strftime('%b %d, %Y'),
+            f"{open_pred[i]:.2f}",
+            f"{low_pred[i]:.2f}",
+            f"{high_pred[i]:.2f}",
+            f"{avg_close_pred[i]:.2f}",
+            action
+        ]
+        table_data.append(row)
+     # Print table using tabulate
+    headers = ['Date', 'Predicted Open', 'Predicted Low', 'Predicted High', 'Predicted Close', 'Action']
+    print("\nPredictions for the next 5 business days:")
+    print(tabulate(table_data, headers=headers, tablefmt='grid'))
+    
     return table_data
 
 def perform_additional_functions(data, high_pred, low_pred, avg_close_pred, open_pred, user_date):
