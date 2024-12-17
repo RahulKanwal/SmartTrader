@@ -18,7 +18,7 @@ Student ID: 018192941
 SJSU Email: kartik.chindarkar@sjsu.edu
 Student ID: 017583868
 —-------------------------------------
-Application URL: https://smarttrader-aob7.onrender.com
+Application URL:  https://smarttrader-ssta.onrender.com/
 —-------------------------------------
 Information to know:
 
